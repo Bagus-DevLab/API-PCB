@@ -1,40 +1,48 @@
-from fastapi import FastAPI, Depends, HTTPException
+import os
+from fastapi import FastAPI, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
+# Import Module Kita
 from app.core.database import engine, get_db, Base
 from app.models.device import Device
-from app.mqtt.client import connect_mqtt, mqtt_client # <--- Tambahan 1
+from app.mqtt.client import connect_mqtt
 from app.api.v1.devices import router as device_router
-from fastapi import FastAPI, Request # <--- Tambah Request
-from slowapi import _rate_limit_exceeded_handler # <--- Tambah
-from slowapi.errors import RateLimitExceeded # <--- Tambah
-from app.core.limiter import limiter # <--- Import limiter yang kita buat tadi
-
-import os
+from app.core.limiter import limiter
 
 # --- INIT DATABASE ---
 Base.metadata.create_all(bind=engine)
 
+# --- SETUP APP ---
 app = FastAPI(title="IoT Backend API")
-app.state.limiter = limiter
 
+# 1. Pasang State Limiter (Wajib di main.py)
+app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# 2. Register Router
 app.include_router(device_router, prefix="/api/v1", tags=["Devices"])
 
-# --- INIT MQTT SAAT SERVER NYALA --- <--- Tambahan 2
+# --- STARTUP EVENTS ---
 @app.on_event("startup")
 async def startup_event():
     print("🚀 Menyalakan Mesin MQTT...")
     connect_mqtt()
 
+# --- ROOT ENDPOINT (Contoh penggunaan di main.py) ---
 @app.get("/")
-def read_root():
-    return {"status": "Backend is Running", "db_connected": True}
+@limiter.limit("5/minute") # Contoh: IP yg sama cuma boleh refresh halaman ini 5x semenit
+def read_root(request: Request): # <--- JANGAN LUPA request: Request
+    return {
+        "status": "Backend is Running", 
+        "service": "IoT Platform",
+        "docs_url": "/docs"
+    }
 
-
-# ... (Biarkan endpoint test-create-device yang lama tetap ada di bawah sini)
+# --- ENDPOINT TEST DUMMY (Boleh dihapus nanti kalau production) ---
 @app.post("/test-create-device")
 def create_dummy_device(device_id: str, pin: str, db: Session = Depends(get_db)):
-    # ... (code lama)
     existing_device = db.query(Device).filter(Device.device_id == device_id).first()
     if existing_device:
         raise HTTPException(status_code=400, detail="Device ID sudah ada bro!")
