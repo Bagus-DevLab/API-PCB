@@ -14,6 +14,13 @@ services:
       - POSTGRES_DB=${DB_NAME}
     ports:
       - "5432:5432"
+    # Healthcheck: Dokter yang ngecek DB sudah siap belum
+    healthcheck:
+      # PENTING: Pastikan 'user_pcb' & 'iot_db' sesuai dengan isi file .env kamu!
+      test: ["CMD-SHELL", "pg_isready -U iot_admin -d iot_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -21,6 +28,7 @@ services:
     restart: always
     ports:
       - "6379:6379"
+
   # --- SERVICE BACKEND (FastAPI) ---
   web:
     build: .
@@ -28,17 +36,19 @@ services:
     restart: always
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
-      # Tambahkan koneksi Redis ke env backend
       - REDIS_URL=redis://redis:6379/0
     volumes:
-      - ./app:/code/app  # Sync folder app lokal ke container (Hot Reload)
+      - ./app:/code/app
     ports:
       - "8000:8000"
     env_file:
-      - .env  # Baca variabel dari file .env
+      - .env
+    # --- PERBAIKAN UTAMA DISINI ---
     depends_on:
-      - db    # Tunggu database hidup dulu baru backend jalan
-      - redis
+      db:
+        condition: service_healthy  # <--- Backend NUNGGU sampai DB bilang "Sehat"
+      redis:
+        condition: service_started
 
 volumes:
   postgres_data:

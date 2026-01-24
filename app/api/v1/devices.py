@@ -1,100 +1,127 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from app.core.database import get_db
-from app.models.device import Device
-from app.core.security import get_current_user  # <--- Import Satpam tadi
-from pydantic import BaseModel
-# <--- Wajib import Request
 from fastapi import APIRouter, Depends, HTTPException, Request
-from app.core.limiter import limiter  # <--- Import ini
-from app.mqtt.client import mqtt_client
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 from app.core.database import get_db
 from app.models.device import Device
+from app.core.security import get_current_user
+from app.core.limiter import limiter
+from app.mqtt.client import mqtt_client
 
 router = APIRouter()
 
-# Schema Input (Biar validasi data rapi)
-
-
-class ClaimRequest(BaseModel):
+# --- SCHEMA 1: UNTUK USER (CLAIM) ---
+# User HANYA input ID dan PIN. Tidak perlu Factory Secret.
+class UserClaimSchema(BaseModel):
     device_id: str
     pin_code: str
 
+# --- SCHEMA 2: UNTUK ESP32 (AUTO REGISTER) ---
+# Alat WAJIB punya Factory Secret.
+class AutoRegisterSchema(BaseModel):
+    device_id: str
+    pin_code: str
+    factory_secret: str
 
-# app/api/v1/devices.py
 
+# --- 1. ENDPOINT CLAIM (User) ---
 @router.post("/claim")
 @limiter.limit("5/minute") 
 def claim_device(
-    request: Request,             # <--- 1. Ini buat Rate Limiter (Wajib ada)
-    claim_data: ClaimRequest,     # <--- 2. Ini buat Data JSON (device_id & pin ada disini)
+    request: Request,
+    claim_data: UserClaimSchema, # <--- GUNAKAN SCHEMA USER
     db: Session = Depends(get_db), 
     user_uid: str = Depends(get_current_user)
 ):
-    # Gunakan 'claim_data' untuk ambil ID, BUKAN 'request'
-    device = db.query(Device).filter(Device.device_id == claim_data.device_id).first()
+    # 1. Bersihkan Input (Spasi & Huruf Besar)
+    clean_id = claim_data.device_id.strip().upper()
+    clean_pin = claim_data.pin_code.strip()
+
+    # 2. Cari Alat
+    device = db.query(Device).filter(Device.device_id == clean_id).first()
     
     if not device:
-        # Gunakan 'claim_data' juga disini
-        raise HTTPException(status_code=404, detail=f"Alat {claim_data.device_id} tidak ditemukan.")
+        raise HTTPException(status_code=404, detail=f"Alat {clean_id} tidak ditemukan. Pastikan alat sudah nyala.")
 
     if device.owner_uid:
         if device.owner_uid == user_uid:
              return {"message": "Alat ini memang sudah punya kamu kok."}
         raise HTTPException(status_code=400, detail="Alat ini sudah dimiliki orang lain!")
 
-    # Gunakan 'claim_data' buat cek PIN
-    if device.pin_code != claim_data.pin_code:
+    # 3. Cek PIN
+    if device.pin_code != clean_pin:
         raise HTTPException(status_code=400, detail="PIN Salah! Cek stiker alat.")
 
+    # 4. Simpan Pemilik
     device.owner_uid = user_uid
     device.device_name = "Alat Baru Saya"
     db.commit()
     
     return {
         "status": "success",
-        # Gunakan 'claim_data' disini juga
-        "message": f"Selamat! Alat {claim_data.device_id} berhasil ditambahkan ke akunmu.",
+        "message": f"Selamat! Alat {clean_id} berhasil ditambahkan ke akunmu.",
         "owner": user_uid
     }
 
 
-# --- API CONTROL RELAY (TESTING MQTT) --- <--- Tambahan 3
+# --- 2. ENDPOINT CONTROL RELAY ---
 @router.post("/control-relay")
-@limiter.limit("5/minute")
+@limiter.limit("10/minute") # Limit agak longgar buat kontrol
 def control_relay(
     request: Request,
     device_id: str,
     state: str,
-    user_uid: str = Depends(get_current_user),  # User yang sedang login
+    user_uid: str = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Validasi input
+    clean_id = device_id.strip().upper()
+
     if state not in ["ON", "OFF"]:
         return {"error": "State harus ON atau OFF"}
 
-    # 2. [LOGIC BARU] Cek Database: Apakah alat ini ada & milik user ini?
-    device = db.query(Device).filter(Device.device_id == device_id).first()
+    device = db.query(Device).filter(Device.device_id == clean_id).first()
 
     if not device:
-        raise HTTPException(
-            status_code=404, detail="Alat tidak ditemukan di sistem kami.")
+        raise HTTPException(status_code=404, detail="Alat tidak ditemukan.")
 
-    # Skenario B: Alat ada, TAPI bukan milik user yang login
     if device.owner_uid != user_uid:
-        raise HTTPException(
-            status_code=403, detail="Eits! Ini bukan alat kamu. Dilarang kontrol!")
+        raise HTTPException(status_code=403, detail="Eits! Ini bukan alat kamu.")
 
-    # Tentukan Topic: alat/{ID}/command
-    topic = f"alat/{device_id}/command"
+    topic = f"alat/{clean_id}/command"
     payload = f'{{"relay": "{state}"}}'
 
-    # Kirim Pesan via MQTT
     mqtt_client.publish(topic, payload)
 
-    return {
-        "message": "Perintah dikirim",
-        "topic": topic,
-        "payload": payload
-    }
+    return {"message": "Perintah dikirim", "topic": topic, "payload": payload}
+
+
+# --- 3. ENDPOINT AUTO REGISTER (ESP32) ---
+@router.post("/auto-register")
+@limiter.limit("5/minute")
+def auto_register_device(
+    request: Request,
+    data: AutoRegisterSchema, # <--- GUNAKAN SCHEMA ALAT
+    db: Session = Depends(get_db)
+):
+    FACTORY_SECRET = "RAHASIA_PABRIK_PCB_SERIUS_2026" 
+    
+    if data.factory_secret != FACTORY_SECRET:
+        raise HTTPException(status_code=403, detail="Anda bukan perangkat resmi!")
+
+    clean_id = data.device_id.strip().upper()
+    clean_pin = data.pin_code.strip()
+    
+    existing_device = db.query(Device).filter(Device.device_id == clean_id).first()
+    if existing_device:
+        return {"message": "Alat sudah terdaftar, skip."}
+
+    new_device = Device(
+        device_id=clean_id,
+        pin_code=clean_pin,
+        device_name="New Device",
+        is_active=True
+    )
+    db.add(new_device)
+    db.commit()
+    db.refresh(new_device)
+    
+    return {"message": f"Sukses! Alat {clean_id} berhasil didaftarkan otomatis."}
