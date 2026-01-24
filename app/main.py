@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.core.database import engine, get_db, Base
 from app.models.device import Device
 from app.mqtt.client import connect_mqtt, mqtt_client # <--- Tambahan 1
+from app.api.v1.devices import router as device_router
 
 import os
 
@@ -10,6 +11,8 @@ import os
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="IoT Backend API")
+
+app.include_router(device_router, prefix="/api/v1", tags=["Devices"])
 
 # --- INIT MQTT SAAT SERVER NYALA --- <--- Tambahan 2
 @app.on_event("startup")

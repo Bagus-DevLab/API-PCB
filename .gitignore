@@ -8,6 +8,7 @@ venv/
 # Environment Variables (PENTING!)
 .env
 .env.local
+serviceAccountKey.json
 
 # Docker
 .docker/
