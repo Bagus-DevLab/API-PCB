@@ -33,8 +33,11 @@ def get_current_user(creds: HTTPAuthorizationCredentials = Depends(security)):
             headers={"WWW-Authenticate": "Bearer"},
         )
     except Exception as e:
+        # --- TAMBAHAN: PRINT ERROR ASLI KE TERMINAL ---
+        print(f"❌ ERROR VERIFIKASI TOKEN: {str(e)}") 
+        # ----------------------------------------------
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token Tidak Valid / Hack attempt detected.",
+            detail=f"Token Error: {str(e)}", # Tampilkan detail error ke response biar kelihatan di script python
             headers={"WWW-Authenticate": "Bearer"},
         )
