@@ -15,12 +15,21 @@ services:
     ports:
       - "5432:5432"
 
+  redis:
+    image: redis:7-alpine
+    container_name: iot_redis
+    restart: always
+    ports:
+      - "6379:6379"
   # --- SERVICE BACKEND (FastAPI) ---
   web:
     build: .
     container_name: iot_fastapi
     restart: always
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      # Tambahkan koneksi Redis ke env backend
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - ./app:/code/app  # Sync folder app lokal ke container (Hot Reload)
     ports:
@@ -29,6 +38,7 @@ services:
       - .env  # Baca variabel dari file .env
     depends_on:
       - db    # Tunggu database hidup dulu baru backend jalan
+      - redis
 
 volumes:
   postgres_data:
