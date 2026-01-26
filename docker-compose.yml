@@ -14,9 +14,7 @@ services:
       - POSTGRES_DB=${DB_NAME}
     ports:
       - "5432:5432"
-    # Healthcheck: Dokter yang ngecek DB sudah siap belum
     healthcheck:
-      # KOREKSI: Pakai variabel environment biar sinkron sama .env
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 5s
       timeout: 5s
@@ -31,32 +29,28 @@ services:
 
   # --- SERVICE BACKEND (FastAPI) ---
   web:
-    # KOREKSI 1: Matikan build manual, kita pakai Image dari GitHub
-    # build: .
-    
-    # KOREKSI 2: Ganti username_github jadi username asli
+    # Pakai Image dari GitHub Container Registry
     image: ghcr.io/bagus-devlab/pcb-backend-api:latest
     
     container_name: iot_fastapi
     restart: always
     
-    # KOREKSI 3: Hilangkan --reload untuk production (biar enteng)
+    # Perintah start server
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
-    
+
     environment:
       - REDIS_URL=redis://redis:6379/0
-    
-    # KOREKSI 4: Matikan mounting volume code, biar dia pake code yg ada di dalam Image
-    # volumes:
-    #   - ./app:/code/app
-    
+
+    # PERBAIKAN: Spasi sudah diratakan & Mapping spesifik file saja
+    volumes:
+      - ./app/serviceAccountKey.json:/code/app/serviceAccountKey.json
+
     ports:
-      # KOREKSI 5: Host Port ganti 8006 (karena 8000 dipake Portainer)
       - "8006:8000"
-      
+
     env_file:
       - .env
-      
+
     depends_on:
       db:
         condition: service_healthy
