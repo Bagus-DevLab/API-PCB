@@ -1,18 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
+
+# --- IMPORT RATE LIMITER ---
+from fastapi_limiter.depends import RateLimiter
 
 # --- IMPORT DATABASE ---
 from app.core.database import get_db
 from app.models.device import Device 
 
-# --- IMPORT RATE LIMITER ---
-from fastapi_limiter.depends import RateLimiter
-
-# --- PERBAIKAN IMPORT MQTT ---
-# Kita import object 'client' langsung, lalu kita alias-kan jadi 'mqtt_client'
-from app.mqtt.client import client as mqtt_client 
+# --- PERBAIKAN VITAL DISINI ---
+# Kita import 'mqtt_client' karena itu nama variabel asli di file mqtt/client.py
+from app.mqtt.client import mqtt_client 
 
 router = APIRouter()
 
@@ -78,8 +78,7 @@ def control_relay(
     topic = f"alat/{clean_id}/command"
     payload = f'{{"relay": "{state}"}}'
 
-    # --- PERBAIKAN CARA PUBLISH ---
-    # Gunakan method .publish() milik object client
+    # --- PAKAI mqtt_client YANG BENAR ---
     mqtt_client.publish(topic, payload)
 
     return {"message": "Perintah dikirim", "topic": topic, "state": state}
@@ -107,7 +106,6 @@ def auto_register_device(
         device_id=clean_id,
         pin_code=clean_pin,
         device_name="New Device",
-        # is_active=True
     )
     db.add(new_device)
     db.commit()
