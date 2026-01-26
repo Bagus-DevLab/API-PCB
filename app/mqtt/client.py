@@ -1,35 +1,52 @@
 import paho.mqtt.client as mqtt
-import os
-import time
-from app.mqtt.handlers import on_message
+# Jika kamu belum punya app.core.config, kita hardcode dulu credentials-nya
+# from app.core.config import settings 
+from app.mqtt.callbacks import on_message 
 
-# Ambil credential dari .env
-MQTT_BROKER = os.getenv("MQTT_BROKER")
-MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
-MQTT_USER = os.getenv("MQTT_USER")
-MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
+# Variabel Global Client
+mqtt_client = mqtt.Client(client_id="Backend_Listener_Worker", protocol=mqtt.MQTTv311)
 
-# Inisialisasi Client
-mqtt_client = mqtt.Client()
+def start_mqtt():
+    """
+    Fungsi ini dipanggil oleh main.py saat server start.
+    Tugasnya konek ke Broker dan mulai loop listener.
+    """
+    # 1. Setup Auth (Sesuaikan dengan kredensial EMQX kamu)
+    MQTT_BROKER = "k2519aa6.ala.asia-southeast1.emqxsl.com"
+    MQTT_PORT = 8883
+    MQTT_USER = "PCB01"
+    MQTT_PASS = "5ywnMzsVX4Ss9vH"
 
-# Setup Callback (Aksi ketika connect & terima pesan)
-def on_connect(client, userdata, flags, rc):
-    if rc == 0:
-        print("✅ BERHASIL Konek ke MQTT Broker!")
-        # Subscribe ke semua topik alat (Wildcard #)
-        # Artinya: Dengerin semua chat di channel "alat/..."
-        client.subscribe("alat/#") 
-    else:
-        print(f"❌ Gagal Konek, Return Code: {rc}")
+    print(f"🔌 Menghubungkan ke MQTT Broker: {MQTT_BROKER}...")
 
-# Pasang fungsi-fungsinya
-mqtt_client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
-mqtt_client.on_connect = on_connect
-mqtt_client.on_message = on_message # Panggil handler yang kita buat di Langkah 2
+    # Set Username & Password
+    mqtt_client.username_pw_set(MQTT_USER, MQTT_PASS)
+    
+    # Wajib SSL untuk port 8883
+    mqtt_client.tls_set() 
 
-def connect_mqtt():
+    # 2. Hubungkan logic Callback (PENTING!)
+    mqtt_client.on_message = on_message
+
+    # 3. Konek & Subscribe
     try:
         mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
-        mqtt_client.loop_start() # Jalan di background thread
+        
+        # Subscribe ke Topik Dinamis
+        mqtt_client.subscribe("alat/+/status/#")
+        
+        # Jalankan di background thread
+        mqtt_client.loop_start() 
+        
+        print("✅ MQTT Listener Berjalan! Mendengarkan: alat/+/status/#")
+        
     except Exception as e:
-        print(f"⚠️ Error Koneksi MQTT: {e}")
+        print(f"❌ Gagal Konek MQTT: {e}")
+
+# Fungsi helper untuk publish (dipakai nanti buat control)
+def publish(topic: str, payload: str):
+    if mqtt_client.is_connected():
+        mqtt_client.publish(topic, payload)
+        print(f"📡 Published: {topic} -> {payload}")
+    else:
+        print("⚠️ MQTT belum terhubung, gagal publish.")
