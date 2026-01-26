@@ -1,57 +1,47 @@
-import os
-from fastapi import FastAPI, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
+from fastapi import FastAPI
+from contextlib import asynccontextmanager
+import redis.asyncio as redis
+from fastapi_limiter import FastAPILimiter
+
+# Import komponen buatan kita
 from app.mqtt.client import start_mqtt
+from app.api import logs 
 
-# Import Module Kita
-from app.core.database import engine, get_db, Base
-from app.models.device import Device
-from app.mqtt.client import start_mqtt
-from app.api.v1.devices import router as device_router
-from app.core.limiter import limiter
-from app.api.v1 import logs
+# --- SETTING LIFESPAN (Cara Modern Handle Startup/Shutdown) ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ==========================
+    # 1. LOGIKA SAAT STARTUP
+    # ==========================
+    print("🚀 System Starting Up...")
+    
+    # A. Nyalakan MQTT
+    start_mqtt()
+    print("✅ MQTT Listener Berjalan!")
 
-# --- INIT DATABASE ---
-Base.metadata.create_all(bind=engine)
+    # B. Konek Redis & Init Rate Limiter
+    try:
+        # Gunakan "redis" karena itu nama service di docker-compose
+        redis_connection = redis.from_url("redis://redis:6379", encoding="utf-8", decode_responses=True)
+        await FastAPILimiter.init(redis_connection)
+        print("🛡️ Rate Limiter Activated!")
+    except Exception as e:
+        print(f"⚠️ Gagal Konek Redis: {e}")
 
-# --- SETUP APP ---
-app = FastAPI(title="IoT Backend API")
+    yield # <--- Di sini aplikasi berjalan melayani user
 
-# 1. Pasang State Limiter (Wajib di main.py)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    # ==========================
+    # 2. LOGIKA SAAT SHUTDOWN
+    # ==========================
+    print("🛑 System Shutting Down...")
+    await redis_connection.close()
 
-# 2. Register Router
-app.include_router(device_router, prefix="/api/v1", tags=["Devices"])
+# --- INISIALISASI APP DENGAN LIFESPAN ---
+app = FastAPI(title="PCB Backend API", lifespan=lifespan)
+
+# --- DAFTARKAN ROUTER ---
 app.include_router(logs.router, prefix="/api/logs", tags=["Sensor Logs"])
 
-# --- STARTUP EVENTS ---
-@app.on_event("startup")
-async def startup_event():
-    print("🚀 Menyalakan Mesin MQTT...")
-    print("🚀 APLIKASI UPDATE DARI GITHUB ACTION BERHASIL!")
-    start_mqtt()
-
-# --- ROOT ENDPOINT (Contoh penggunaan di main.py) ---
 @app.get("/")
-@limiter.limit("5/minute") # Contoh: IP yg sama cuma boleh refresh halaman ini 5x semenit
-def read_root(request: Request): # <--- JANGAN LUPA request: Request
-    return {
-        "status": "Backend is Running", 
-        "service": "IoT Platform",
-        "docs_url": "/docs"
-    }
-
-# --- ENDPOINT TEST DUMMY (Boleh dihapus nanti kalau production) ---
-@app.post("/test-create-device")
-def create_dummy_device(device_id: str, pin: str, db: Session = Depends(get_db)):
-    existing_device = db.query(Device).filter(Device.device_id == device_id).first()
-    if existing_device:
-        raise HTTPException(status_code=400, detail="Device ID sudah ada bro!")
-    new_device = Device(device_id=device_id, pin_code=pin)
-    db.add(new_device)
-    db.commit()
-    db.refresh(new_device)
-    return {"message": "Sukses nambah alat!", "data": new_device}
+def read_root():
+    return {"message": "PCB Backend is Running & Protected!"}
