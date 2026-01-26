@@ -11,6 +11,7 @@ from app.models.device import Device
 from app.mqtt.client import start_mqtt
 from app.api.v1.devices import router as device_router
 from app.core.limiter import limiter
+from app.api import logs
 
 # --- INIT DATABASE ---
 Base.metadata.create_all(bind=engine)
@@ -24,6 +25,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # 2. Register Router
 app.include_router(device_router, prefix="/api/v1", tags=["Devices"])
+app.include_router(logs.router, prefix="/api/logs", tags=["Sensor Logs"])
 
 # --- STARTUP EVENTS ---
 @app.on_event("startup")
