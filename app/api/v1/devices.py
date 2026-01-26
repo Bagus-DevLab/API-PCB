@@ -6,12 +6,14 @@ from typing import Optional
 # --- IMPORT RATE LIMITER ---
 from fastapi_limiter.depends import RateLimiter
 
-# --- IMPORT DATABASE ---
-from app.core.database import get_db
+# --- IMPORT AUTH (FIX PATH) ---
+from app.api.v1.auth import get_current_user  # <-- Path harus 'app.auth'
+
+# --- IMPORT DATABASE (FIX PATH) ---
+from app.core.database import get_db     # <-- Path harus 'app.db.database'
 from app.models.device import Device 
 
-# --- PERBAIKAN VITAL DISINI ---
-# Kita import 'mqtt_client' karena itu nama variabel asli di file mqtt/client.py
+# --- IMPORT MQTT ---
 from app.mqtt.client import mqtt_client 
 
 router = APIRouter()
@@ -30,11 +32,9 @@ class AutoRegisterSchema(BaseModel):
 @router.post("/claim", dependencies=[Depends(RateLimiter(times=5, seconds=60))])
 def claim_device(
     claim_data: UserClaimSchema, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user_uid: str = Depends(get_current_user) # <-- Wajib Login
 ):
-    # Hardcode user sementara
-    user_uid = "TEST_USER_UID_001" 
-
     clean_id = claim_data.device_id.strip().upper()
     clean_pin = claim_data.pin_code.strip()
 
@@ -43,6 +43,7 @@ def claim_device(
     if not device:
         raise HTTPException(status_code=404, detail=f"Alat {clean_id} tidak ditemukan.")
 
+    # Cek apakah sudah ada yang punya
     if device.owner_uid:
         if device.owner_uid == user_uid:
              return {"message": "Alat ini memang sudah punya kamu kok."}
@@ -51,6 +52,7 @@ def claim_device(
     if device.pin_code != clean_pin:
         raise HTTPException(status_code=400, detail="PIN Salah!")
 
+    # SAH: Pindahkan kepemilikan
     device.owner_uid = user_uid
     device.device_name = "Alat Baru Saya"
     db.commit()
@@ -63,7 +65,8 @@ def claim_device(
 def control_relay(
     device_id: str,
     state: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user_uid: str = Depends(get_current_user) # <-- Wajib Login
 ):
     clean_id = device_id.strip().upper()
 
@@ -75,16 +78,20 @@ def control_relay(
     if not device:
         raise HTTPException(status_code=404, detail="Alat tidak ditemukan.")
 
+    # --- SECURITY CHECK (PENTING!) ---
+    # Pastikan yang request adalah pemilik alat
+    if device.owner_uid != user_uid:
+        raise HTTPException(status_code=403, detail="Eits! Bukan alat kamu, jangan iseng ya!")
+
     topic = f"alat/{clean_id}/command"
     payload = f'{{"relay": "{state}"}}'
 
-    # --- PAKAI mqtt_client YANG BENAR ---
     mqtt_client.publish(topic, payload)
 
     return {"message": "Perintah dikirim", "topic": topic, "state": state}
 
 
-# --- 3. ENDPOINT AUTO REGISTER (ESP32) ---
+# --- 3. ENDPOINT AUTO REGISTER (ESP32 - Machine to Machine) ---
 @router.post("/auto-register", dependencies=[Depends(RateLimiter(times=5, seconds=60))])
 def auto_register_device(
     data: AutoRegisterSchema,

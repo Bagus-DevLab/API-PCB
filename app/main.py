@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 import redis.asyncio as redis
 from fastapi_limiter import FastAPILimiter
+from app.api.v1.auth import init_firebase
 
 # Import komponen buatan kita
 from app.mqtt.client import start_mqtt
@@ -19,6 +20,8 @@ async def lifespan(app: FastAPI):
     # A. Nyalakan MQTT
     start_mqtt()
     print("✅ MQTT Listener Berjalan!")
+    
+    init_firebase()
 
     # B. Konek Redis & Init Rate Limiter
     try:
