@@ -29,6 +29,7 @@ app.include_router(device_router, prefix="/api/v1", tags=["Devices"])
 @app.on_event("startup")
 async def startup_event():
     print("🚀 Menyalakan Mesin MQTT...")
+    print("🚀 APLIKASI UPDATE DARI GITHUB ACTION BERHASIL!")
     start_mqtt()
 
 # --- ROOT ENDPOINT (Contoh penggunaan di main.py) ---
