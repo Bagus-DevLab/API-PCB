@@ -47,21 +47,22 @@ jobs:
           key: ${{ secrets.VPS_KEY }}
           port: 22
           script: |
-            # Masuk folder
             cd /var/www/pcb-backend/API-PCB
             
-            # Login Docker di dalam VPS (Pakai token otomatis)
+            # 1. PAKSA TIMPA perubahan manual di server dengan yang ada di GitHub
+            git fetch origin main
+            git reset --hard origin/main
+            
+            # 2. Login GHCR
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            # Tarik kodingan terbaru (untuk update docker-compose.yml)
-            git pull origin main
+            # 3. Tarik Image Terbaru (Explicit Pull)
+            docker-compose pull
             
-            # Tarik Image Docker terbaru dari GHCR
-            docker pull ghcr.io/${{ env.IMAGE_NAME }}:latest
+            # 4. Restart Container dengan Opsi FORCE
+            # --force-recreate: Paksa bikin ulang container meski config gak berubah
+            # --remove-orphans: Hapus container hantu
+            docker-compose up -d --force-recreate --remove-orphans
             
-            # Restart Container
-            docker-compose down
-            docker-compose up -d
-            
-            # Hapus image lama biar hemat disk
+            # 5. Bersih-bersih
             docker image prune -f
