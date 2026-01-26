@@ -3,6 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from app.mqtt.client import start_mqtt
 
 # Import Module Kita
 from app.core.database import engine, get_db, Base
