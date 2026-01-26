@@ -5,7 +5,7 @@ from typing import List
 # --- IMPORT RATE LIMITER ---
 from fastapi_limiter.depends import RateLimiter
 
-from app.db.database import get_db
+from app.core.database import get_db
 from app.crud import log as crud_log
 from app.schemas.log import LogResponse
 
