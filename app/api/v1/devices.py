@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 # --- UPDATE IMPORT (Sesuai Struktur Baru) ---
-from app.db.database import get_db          # <-- Folder db
+from app.core.database import get_db          # <-- Folder db
 from app.models.device import SensorLog     # <-- Sesuaikan nama class device kamu (Device/SensorLog?)
 # Cek model kamu: Kalau nama classnya Device, ganti SensorLog jadi Device di baris atas
 from app.mqtt.client import publish_message # <-- Kita pakai helper publish kalau ada, atau client langsung
