@@ -5,7 +5,7 @@ from fastapi_limiter import FastAPILimiter
 
 # Import komponen buatan kita
 from app.mqtt.client import start_mqtt
-from app.api import logs 
+from app.api.v1 import logs 
 
 # --- SETTING LIFESPAN (Cara Modern Handle Startup/Shutdown) ---
 @asynccontextmanager
