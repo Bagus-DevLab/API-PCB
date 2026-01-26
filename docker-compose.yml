@@ -16,8 +16,8 @@ services:
       - "5432:5432"
     # Healthcheck: Dokter yang ngecek DB sudah siap belum
     healthcheck:
-      # PENTING: Pastikan 'user_pcb' & 'iot_db' sesuai dengan isi file .env kamu!
-      test: ["CMD-SHELL", "pg_isready -U iot_admin -d iot_db"]
+      # KOREKSI: Pakai variabel environment biar sinkron sama .env
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -31,22 +31,35 @@ services:
 
   # --- SERVICE BACKEND (FastAPI) ---
   web:
-    build: .
+    # KOREKSI 1: Matikan build manual, kita pakai Image dari GitHub
+    # build: .
+    
+    # KOREKSI 2: Ganti username_github jadi username asli
+    image: ghcr.io/bagus-devlab/pcb-backend-api:latest
+    
     container_name: iot_fastapi
     restart: always
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    
+    # KOREKSI 3: Hilangkan --reload untuk production (biar enteng)
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    
     environment:
       - REDIS_URL=redis://redis:6379/0
-    volumes:
-      - ./app:/code/app
+    
+    # KOREKSI 4: Matikan mounting volume code, biar dia pake code yg ada di dalam Image
+    # volumes:
+    #   - ./app:/code/app
+    
     ports:
-      - "8000:8000"
+      # KOREKSI 5: Host Port ganti 8006 (karena 8000 dipake Portainer)
+      - "8006:8000"
+      
     env_file:
       - .env
-    # --- PERBAIKAN UTAMA DISINI ---
+      
     depends_on:
       db:
-        condition: service_healthy  # <--- Backend NUNGGU sampai DB bilang "Sehat"
+        condition: service_healthy
       redis:
         condition: service_started
 
