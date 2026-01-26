@@ -11,7 +11,7 @@ from app.models.device import Device
 from app.mqtt.client import start_mqtt
 from app.api.v1.devices import router as device_router
 from app.core.limiter import limiter
-from app.api import logs
+from app.api.v1 import logs
 
 # --- INIT DATABASE ---
 Base.metadata.create_all(bind=engine)
