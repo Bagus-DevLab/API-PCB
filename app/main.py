@@ -5,7 +5,8 @@ from fastapi_limiter import FastAPILimiter
 
 # Import komponen buatan kita
 from app.mqtt.client import start_mqtt
-from app.api.v1 import logs 
+from app.api.v1 import logs, devices 
+
 
 # --- SETTING LIFESPAN (Cara Modern Handle Startup/Shutdown) ---
 @asynccontextmanager
@@ -41,6 +42,7 @@ app = FastAPI(title="PCB Backend API", lifespan=lifespan)
 
 # --- DAFTARKAN ROUTER ---
 app.include_router(logs.router, prefix="/api/logs", tags=["Sensor Logs"])
+app.include_router(devices.router, prefix="/api/devices", tags=["Devices & Control"])
 
 @app.get("/")
 def read_root():
