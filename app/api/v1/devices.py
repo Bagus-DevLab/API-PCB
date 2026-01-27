@@ -40,6 +40,10 @@ class DeviceResponse(BaseModel):
     
     class Config:
         from_attributes = True 
+        
+class ControlRelaySchema(BaseModel):
+    relay_name: str  # relay_1, relay_2, relay_3
+    state: bool      # true = ON, false = OFF
 
 # ==========================================
 # 2. ENDPOINTS
@@ -145,33 +149,57 @@ def unclaim_device(
 
 # --- E. CONTROL RELAY ---
 # Limit: 20 request / menit (Biar bisa on/off agak cepat)
-@router.post("/control-relay", dependencies=[Depends(RateLimiter(times=20, seconds=60))])
+@router.post("/control-relay", dependencies=[Depends(RateLimiter(times=30, seconds=60))])
 def control_relay(
     device_id: str,
-    state: str,
+    # Kita terima data sebagai Query Parameters biar sama kayak request Flutter
+    relay_name: str, 
+    state: bool,
     db: Session = Depends(get_db),
     user_uid: str = Depends(get_current_user) # 🔒 Wajib Login
 ):
     clean_id = device_id.strip().upper()
-
-    if state not in ["ON", "OFF"]:
-        return {"error": "State harus ON atau OFF"}
-
+    
+    # 1. Validasi Alat & Kepemilikan
     device = db.query(Device).filter(Device.device_id == clean_id).first()
-
     if not device:
         raise HTTPException(status_code=404, detail="Alat tidak ditemukan.")
-
+    
     if device.owner_uid != user_uid:
-        raise HTTPException(status_code=403, detail="Eits! Bukan alat kamu.")
+        raise HTTPException(status_code=403, detail="Bukan alat kamu!")
 
-    topic = f"alat/{clean_id}/command"
-    payload = f'{{"relay": "{state}"}}'
+    # 2. Konversi State (Boolean -> String MQTT)
+    payload_str = "ON" if state else "OFF"
 
-    mqtt_client.publish(topic, payload)
+    # 3. Mapping Topik (Sesuaikan dengan Kode ESP32)
+    # relay_1 = Lampu
+    # relay_2 = Kipas Exhaust (Ganti jadi Pompa Minum kalau di ESP32 pakai Pompa)
+    # relay_3 = Pompa Air
+    
+    topic_suffix = ""
+    if relay_name == "relay_1":
+        topic_suffix = "lampu"
+    elif relay_name == "relay_2":
+        topic_suffix = "pompa_minum" # Asumsi relay_2 adalah pompa minum
+    elif relay_name == "relay_3":
+        topic_suffix = "pompa_siram" # Asumsi relay_3 adalah pompa siram
+    else:
+        raise HTTPException(status_code=400, detail="Relay name tidak valid (relay_1/2/3)")
 
-    return {"message": "Perintah dikirim", "topic": topic, "state": state}
+    # 4. Rakit Topik Akhir
+    # Format: alat/{ID}/cmd/{SUFFIX}
+    mqtt_topic = f"alat/{clean_id}/cmd/{topic_suffix}"
 
+    # 5. Kirim ke Broker
+    mqtt_client.publish(mqtt_topic, payload_str)
+    
+    print(f"🐍 [PYTHON] MQTT Publish -> {mqtt_topic}: {payload_str}")
+
+    return {
+        "status": "success", 
+        "message": f"Perintah {payload_str} dikirim ke {topic_suffix}",
+        "topic": mqtt_topic
+    }
 
 # --- F. AUTO REGISTER (Mesin ke Mesin) ---
 # Limit: 5 request / menit

@@ -6,11 +6,20 @@ class LogBase(BaseModel):
     topic_type: str
     value: str
 
-# Cetakan untuk Response API (ditambah ID & Waktu)
-class LogResponse(LogBase):
+class LogResponse(BaseModel):
     id: int
     device_id: str
+    temperature: float
+    humidity: float
+    amonia: float
+    feed_level: float
+    
+    # Tambahkan status relay ini
+    relay_1: bool # Lampu
+    relay_2: bool # Kipas/Pompa Minum
+    relay_3: bool # Pompa Siram
+    
     created_at: datetime
 
     class Config:
-        from_attributes = True  # Supaya bisa baca data dari SQLAlchemy
+        from_attributes = True
