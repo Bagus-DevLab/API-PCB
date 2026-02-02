@@ -20,7 +20,7 @@ async def lifespan(app: FastAPI):
     # A. Nyalakan MQTT
     start_mqtt()
     print("✅ MQTT Listener Berjalan!")
-    
+      
     init_firebase()
 
     # B. Konek Redis & Init Rate Limiter
