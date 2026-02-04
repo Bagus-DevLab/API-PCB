@@ -1,0 +1,45 @@
+Running all tests...
+============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-8.3.4, pluggy-1.6.0
+rootdir: /home/bagus/belajar/API-PCB
+plugins: anyio-4.12.1, asyncio-0.23.5
+asyncio: mode=Mode.STRICT
+collected 6 items
+
+tests/test_devices.py ......                                             [100%]
+
+=============================== warnings summary ===============================
+.venv/lib64/python3.11/site-packages/pydantic/_internal/_config.py:271
+.venv/lib64/python3.11/site-packages/pydantic/_internal/_config.py:271
+  /home/bagus/belajar/API-PCB/.venv/lib64/python3.11/site-packages/pydantic/_internal/_config.py:271: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+tests/test_devices.py::test_auto_register_success
+tests/test_devices.py::test_auto_register_invalid_secret
+tests/test_devices.py::test_claim_device_success
+tests/test_devices.py::test_claim_device_wrong_pin
+tests/test_devices.py::test_control_relay_success_mqtt_publish
+tests/test_devices.py::test_control_relay_not_owner
+  /home/bagus/belajar/API-PCB/.venv/lib64/python3.11/site-packages/httpx/_client.py:680: DeprecationWarning: The 'app' shortcut is now deprecated. Use the explicit style 'transport=WSGITransport(app=...)' instead.
+    warnings.warn(message, DeprecationWarning)
+
+tests/test_devices.py::test_auto_register_success
+tests/test_devices.py::test_claim_device_success
+tests/test_devices.py::test_control_relay_success_mqtt_publish
+  /home/bagus/belajar/API-PCB/.venv/lib64/python3.11/site-packages/starlette/routing.py:72: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    response = await func(request)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_devices.py::test_claim_device_success
+tests/test_devices.py::test_claim_device_wrong_pin
+  /usr/lib64/python3.11/unittest/mock.py:2133: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    setattr(_type, entry, MagicProxy(entry, self))
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 6 passed, 13 warnings in 0.08s ========================
+sys:1: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+Exit code: 0
